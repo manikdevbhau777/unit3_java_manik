@@ -1,0 +1,274 @@
+// -----------------------------------------------------------------------------
+// ONE SINGLE JAVA FILE:
+// Spring DI + Hibernate CRUD + Spring-Hibernate Transactions
+// -----------------------------------------------------------------------------
+
+
+// ======================= PART A : SPRING DEPENDENCY INJECTION =======================
+
+import org.springframework.context.annotation.*;
+import org.springframework.stereotype.Component;
+
+@Configuration
+class AppConfig {
+
+    @Bean
+    public Course course() {
+        return new Course("Java Programming");
+    }
+
+    @Bean
+    public Student student() {
+        return new Student(course());
+    }
+}
+
+class Course {
+    private String courseName;
+
+    public Course(String courseName) {
+        this.courseName = courseName;
+    }
+    public String getCourseName() {
+        return courseName;
+    }
+}
+
+class Student {
+    private Course course;
+
+    public Student(Course course) {
+        this.course = course;
+    }
+
+    public void showDetails() {
+        System.out.println("Student enrolled in course: " + course.getCourseName());
+    }
+}
+
+
+// ======================= PART B : HIBERNATE STUDENT CRUD =======================
+
+import jakarta.persistence.*;
+
+@Entity
+@Table(name = "student")
+class HibernateStudent {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private int id;
+
+    @Column
+    private String name;
+
+    @Column
+    private int marks;
+
+    public HibernateStudent() {}
+    public HibernateStudent(String name, int marks) {
+        this.name = name;
+        this.marks = marks;
+    }
+
+    // Getters – Setters
+    public int getId() { return id; }
+    public String getName() { return name; }
+    public int getMarks() { return marks; }
+
+    public void setName(String name) { this.name = name; }
+    public void setMarks(int marks) { this.marks = marks; }
+}
+
+import org.hibernate.*;
+import org.hibernate.cfg.Configuration;
+
+class HibernateCRUD {
+
+    static SessionFactory factory = new Configuration().configure().buildSessionFactory();
+
+    // Create student
+    static void createStudent(String name, int marks) {
+        Session session = factory.openSession();
+        Transaction tx = session.beginTransaction();
+        session.save(new HibernateStudent(name, marks));
+        tx.commit();
+        session.close();
+        System.out.println("Student saved.");
+    }
+
+    // Read student
+    static void readStudent(int id) {
+        Session session = factory.openSession();
+        HibernateStudent st = session.get(HibernateStudent.class, id);
+        System.out.println("Student: " + st.getName() + " Marks: " + st.getMarks());
+        session.close();
+    }
+
+    // Update student
+    static void updateStudent(int id, int marks) {
+        Session session = factory.openSession();
+        Transaction tx = session.beginTransaction();
+        HibernateStudent st = session.get(HibernateStudent.class, id);
+        st.setMarks(marks);
+        session.update(st);
+        tx.commit();
+        session.close();
+        System.out.println("Student updated.");
+    }
+
+    // Delete student
+    static void deleteStudent(int id) {
+        Session session = factory.openSession();
+        Transaction tx = session.beginTransaction();
+        HibernateStudent st = session.get(HibernateStudent.class, id);
+        session.delete(st);
+        tx.commit();
+        session.close();
+        System.out.println("Student deleted.");
+    }
+}
+
+
+// ======================= PART C : SPRING + HIBERNATE TRANSACTIONS =======================
+
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+// ------------ Account Entity ------------
+@Entity
+@Table(name = "account")
+class Account {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private int accId;
+
+    @Column
+    private String name;
+
+    @Column
+    private double balance;
+
+    public Account() {}
+    public Account(String name, double balance) {
+        this.name = name;
+        this.balance = balance;
+    }
+
+    // Getters, setters
+    public int getAccId() { return accId; }
+    public String getName() { return name; }
+    public double getBalance() { return balance; }
+    public void setBalance(double b) { balance = b; }
+}
+
+// ------------ DAO Class ------------
+@Component
+class AccountDAO {
+
+    SessionFactory factory = new Configuration().configure().buildSessionFactory();
+
+    public Account getAccount(int id) {
+        Session session = factory.openSession();
+        Account acc = session.get(Account.class, id);
+        session.close();
+        return acc;
+    }
+
+    public void updateAccount(Account acc) {
+        Session session = factory.openSession();
+        Transaction tx = session.beginTransaction();
+        session.update(acc);
+        tx.commit();
+        session.close();
+    }
+}
+
+// ------------ Service Class with Transaction ------------
+@Service
+class BankingService {
+
+    @Autowired
+    AccountDAO dao;
+
+    @Transactional
+    public void transferMoney(int fromId, int toId, double amount) {
+
+        Account a1 = dao.getAccount(fromId);
+        Account a2 = dao.getAccount(toId);
+
+        if (a1.getBalance() < amount) {
+            throw new RuntimeException("Insufficient Balance!");
+        }
+
+        // deduct
+        a1.setBalance(a1.getBalance() - amount);
+        dao.updateAccount(a1);
+
+        // add
+        a2.setBalance(a2.getBalance() + amount);
+        dao.updateAccount(a2);
+
+        System.out.println("Transaction Completed Successfully!");
+    }
+}
+
+
+// ======================= MAIN TEST APP =======================
+
+public class MainSpringHibernateApp {
+
+    public static void main(String[] args) {
+
+        // ---- PART A: SPRING DI TEST ----
+        AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext(AppConfig.class);
+        Student student = context.getBean(Student.class);
+        student.showDetails();
+
+
+        // ---- PART B: HIBERNATE CRUD TEST ----
+        HibernateCRUD.createStudent("John", 90);
+        HibernateCRUD.readStudent(1);
+        HibernateCRUD.updateStudent(1, 95);
+        HibernateCRUD.deleteStudent(1);
+
+
+        // ---- PART C: SPRING + HIBERNATE TRANSACTION TEST ----
+        BankingService service = context.getBean(BankingService.class);
+
+        try {
+            service.transferMoney(1, 2, 500);
+        } catch (Exception e) {
+            System.out.println("Transaction Failed: " + e.getMessage());
+        }
+
+        context.close();
+    }
+}
+
+
+
+/* =======================================================================
+   REQUIRED HIBERNATE CONFIGURATION (hibernate.cfg.xml)
+   (Place this in resources folder – included here for completeness)
+   =======================================================================
+<?xml version='1.0' encoding='utf-8'?>
+<!DOCTYPE hibernate-configuration PUBLIC
+        "-//Hibernate/Hibernate Configuration DTD//EN"
+        "http://hibernate.sourceforge.net/hibernate-configuration-3.0.dtd">
+<hibernate-configuration>
+    <session-factory>
+        <property name="hibernate.connection.url">jdbc:mysql://localhost:3306/testdb</property>
+        <property name="hibernate.connection.username">root</property>
+        <property name="hibernate.connection.password">root</property>
+        <property name="hibernate.dialect">org.hibernate.dialect.MySQLDialect</property>
+        <property name="show_sql">true</property>
+        <property name="hbm2ddl.auto">update</property>
+
+        <mapping class="HibernateStudent"/>
+        <mapping class="Account"/>
+    </session-factory>
+</hibernate-configuration>
+======================================================================= */
