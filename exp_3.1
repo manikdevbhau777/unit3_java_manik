@@ -1,0 +1,120 @@
+// -----------------------------------------
+//  ONE SINGLE JAVA FILE FOR ALL TASKS
+//  Includes:
+//  1. LoginServlet (Part A)
+//  2. EmployeeServlet (Part B)
+//  3. AttendanceServlet (Part C)
+// -----------------------------------------
+
+import java.io.*;
+import java.sql.*;
+import javax.servlet.*;
+import javax.servlet.http.*;
+
+
+// --------------------------------------------------
+// PART A : LOGIN SERVLET
+// --------------------------------------------------
+public class LoginServlet extends HttpServlet {
+
+    protected void doPost(HttpServletRequest request, HttpServletResponse response)
+            throws ServletException, IOException {
+
+        response.setContentType("text/html");
+        PrintWriter out = response.getWriter();
+
+        String user = request.getParameter("username");
+        String pass = request.getParameter("password");
+
+        if (user.equals("admin") && pass.equals("1234")) {
+            out.println("<h2>Welcome " + user + "!</h2>");
+        } else {
+            out.println("<h2>Invalid Username or Password!</h2>");
+        }
+    }
+}
+
+/*
+===================== login.html =====================
+
+<!DOCTYPE html>
+<html>
+<body>
+    <h2>User Login</h2>
+    <form action="LoginServlet" method="post">
+        Username: <input type="text" name="username"><br><br>
+        Password: <input type="password" name="password"><br><br>
+        <input type="submit" value="Login">
+    </form>
+</body>
+</html>
+
+======================================================
+*/
+
+
+
+// --------------------------------------------------
+// PART B : EMPLOYEE SERVLET + JDBC
+// --------------------------------------------------
+public class EmployeeServlet extends HttpServlet {
+
+    String url = "jdbc:mysql://localhost:3306/testdb";
+    String user = "root";
+    String pass = "root";
+
+    protected void doGet(HttpServletRequest req, HttpServletResponse res)
+            throws ServletException, IOException {
+        displayAll(res);
+    }
+
+    protected void doPost(HttpServletRequest req, HttpServletResponse res)
+            throws ServletException, IOException {
+
+        String id = req.getParameter("empid");
+
+        if (id == null || id.equals("")) {
+            displayAll(res);
+        } else {
+            searchEmployee(res, Integer.parseInt(id));
+        }
+    }
+
+
+    // Show all employees
+    void displayAll(HttpServletResponse res) throws IOException {
+        res.setContentType("text/html");
+        PrintWriter out = res.getWriter();
+
+        try {
+            Class.forName("com.mysql.cj.jdbc.Driver");
+            Connection con = DriverManager.getConnection(url, user, pass);
+
+            Statement st = con.createStatement();
+            ResultSet rs = st.executeQuery("SELECT * FROM Employee");
+
+            out.println("<h2>Employee List</h2>");
+            out.println("<table border='1'>");
+            out.println("<tr><th>ID</th><th>Name</th><th>Salary</th></tr>");
+
+            while (rs.next()) {
+                out.println("<tr><td>" + rs.getInt(1) + "</td><td>"
+                        + rs.getString(2) + "</td><td>" + rs.getDouble(3) + "</td></tr>");
+            }
+            out.println("</table>");
+
+            con.close();
+        } catch (Exception e) {
+            out.println(e);
+        }
+    }
+
+
+    // Search by ID
+    void searchEmployee(HttpServletResponse res, int empid) throws IOException {
+        res.setContentType("text/html");
+        PrintWriter out = res.getWriter();
+
+        try {
+            Class.forName("com.mysql.cj.jdbc.Driver");
+            Connection con = Drive
